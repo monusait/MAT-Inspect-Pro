@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Analytics Dashboard — MAT Inspect{% endblock %}
+
+{% block nav %}
+<nav class="top-nav">
+    <div class="nav-brand">
+        <i class="fa-solid fa-shield-halved" style="color:var(--accent-blue)"></i>
+        MAT Inspect Pro
+    </div>
+    <div class="nav-profile">
+        <a href="/asset-tags" class="btn btn-outline" style="font-size:0.8rem; padding:0.5rem 1rem; margin-right:10px; text-decoration:none">
+            <i class="fa-solid fa-qrcode"></i> Asset Tags
+        </a>
+        <a href="/roster" class="btn btn-outline" style="font-size:0.8rem; padding:0.5rem 1rem; margin-right:10px; text-decoration:none">
+            <i class="fa-solid fa-mobile-screen"></i> Field Operations
+        </a>
+        <div class="avatar" title="{{ user.name }} ({{ user.role }})">{{ user.name[0] | upper }}</div>
+        <a href="/logout" class="btn btn-icon" title="Secure Logout"
+            style="margin-left:8px; color:var(--state-danger); border:1px solid rgba(239,68,68,0.3); padding:0.4rem 0.6rem;">
+            <i class="fa-solid fa-power-off"></i>
+        </a>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div style="animation:fadeIn 0.4s ease-out">
+    <h2><i class="fa-solid fa-chart-pie" style="color:var(--accent-blue); margin-right:10px"></i>SharePoint Analytics Dashboard</h2>
+    <p>Real-time fleet health and inspection compliance — {{ user.name }}</p>
+
+    <!-- Stats Grid -->
+    <div class="dashboard-grid" style="margin-top:2rem">
+        <div class="stat-card">
+            <div class="icon"><i class="fa-solid fa-truck-moving"></i></div>
+            <div class="stat-value">{{ stats.total_equipment }}</div>
+            <div class="stat-label">Total Equipment</div>
+        </div>
+        <div class="stat-card">
+            <div class="icon" style="color:var(--state-success)"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="stat-value" style="color:var(--state-success)">{{ stats.safe }}</div>
+            <div class="stat-label">Operational (Green)</div>
+        </div>
+        <div class="stat-card">
+            <div class="icon" style="color:var(--state-warning)"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div class="stat-value" style="color:var(--state-warning)">{{ stats.warning }}</div>
+            <div class="stat-label">Needs Attention (Yellow)</div>
+        </div>
+        <div class="stat-card">
+            <div class="icon" style="color:var(--state-danger)"><i class="fa-solid fa-circle-xmark"></i></div>
+            <div class="stat-value" style="color:var(--state-danger)">{{ stats.danger }}</div>
+            <div class="stat-label">Critical Danger (Red)</div>
+        </div>
+        <div class="stat-card">
+            <div class="icon"><i class="fa-solid fa-clipboard-check"></i></div>
+            <div class="stat-value">{{ stats.total_inspections }}</div>
+            <div class="stat-label">Total Inspections</div>
+        </div>
+        <div class="stat-card">
+            <div class="icon" style="color:var(--state-warning)"><i class="fa-solid fa-database"></i></div>
+            <div class="stat-value" style="color:var(--state-warning)">{{ stats.offline_pending }}</div>
+            <div class="stat-label">Offline Cache (Pending Sync)</div>
+        </div>
+    </div>
+
+    <!-- Recent Inspections Table -->
+    <div class="glass-panel" style="margin-top:2rem">
+        <h3 style="margin-bottom:1.5rem; color:white">
+            <i class="fa-solid fa-clock-rotate-left" style="color:var(--accent-blue); margin-right:8px"></i>
+            Recent Inspection Log
+        </h3>
+        {% if inspections %}
+        <table style="width:100%; border-collapse:collapse; font-size:0.9rem">
+            <thead>
+                <tr style="border-bottom:1px solid var(--border-light); color:var(--text-muted); text-transform:uppercase; font-size:0.75rem; letter-spacing:0.05em">
+                    <th style="padding:0.75rem; text-align:left">Equipment</th>
+                    <th style="padding:0.75rem; text-align:left">Inspector</th>
+                    <th style="padding:0.75rem; text-align:left">Result</th>
+                    <th style="padding:0.75rem; text-align:left">Photos</th>
+                    <th style="padding:0.75rem; text-align:left">Sync Status</th>
+                    <th style="padding:0.75rem; text-align:left">Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for ins in inspections %}
+            <tr style="border-bottom:1px solid var(--border-light);">
+                <td style="padding:0.75rem; color:white; font-weight:500">{{ ins.equipment.name }}</td>
+                <td style="padding:0.75rem; color:var(--text-secondary)">{{ ins.inspector }}</td>
+                <td style="padding:0.75rem">
+                    {% set badge_class = 'badge-success' if ins.result == 'Green' else ('badge-danger' if ins.result == 'Red' else 'badge-warning') %}
+                    <span class="badge {{ badge_class }}">{{ ins.result }}</span>
+                </td>
+                <td style="padding:0.75rem; color:var(--text-secondary)">
+                    <i class="fa-solid fa-images" style="color:var(--accent-blue)"></i> {{ ins.photo_count }}
+                </td>
+                <td style="padding:0.75rem">
+                    {% if 'Cloud' in ins.sync_status %}
+                    <span style="color:var(--state-success); font-size:0.8rem"><i class="fa-solid fa-cloud-check"></i> {{ ins.sync_status }}</span>
+                    {% else %}
+                    <span style="color:var(--state-warning); font-size:0.8rem"><i class="fa-solid fa-database"></i> {{ ins.sync_status }}</span>
+                    {% endif %}
+                </td>
+                <td style="padding:0.75rem; color:var(--text-muted); font-size:0.8rem">{{ ins.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:var(--text-muted); text-align:center; padding:2rem">No inspections recorded yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Fleet Health Grid -->
+    <div class="glass-panel" style="margin-top:2rem">
+        <h3 style="margin-bottom:1.5rem; color:white">
+            <i class="fa-solid fa-boxes-stacked" style="color:var(--accent-blue); margin-right:8px"></i>
+            Fleet Health Overview
+        </h3>
+        <div class="equipment-list">
+            {% for equip in fleet %}
+            {% set status_class = 'status-safe' if equip.status == 'Green' else ('status-danger' if equip.status == 'Red' else 'status-warning') %}
+            {% set badge_class = 'badge-success' if equip.status == 'Green' else ('badge-danger' if equip.status == 'Red' else 'badge-warning') %}
+            <div class="equip-card {{ status_class }}">
+                <div class="equip-header">
+                    <div>
+                        <div class="equip-title">{{ equip.name }}</div>
+                        <div class="equip-type">{{ equip.type }}</div>
+                    </div>
+                    <span class="badge {{ badge_class }}">{{ equip.status }}</span>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-muted)">
+                    <i class="fa-solid fa-calendar"></i> Last: {{ equip.last_inspection[:10] if equip.last_inspection != 'Never' else 'Never' }}
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function syncToSharePoint() {
+    const btn = document.getElementById('sync-btn');
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-rotate fa-spin"></i> Syncing...';
+    const resp = await fetch('/api/sync', { method: 'POST' });
+    const data = await resp.json();
+    setTimeout(() => location.reload(), 1500);
+}
+</script>
+{% endblock %}

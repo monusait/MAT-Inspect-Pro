@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% block title %}Inspect: {{ equipment.name }} — MAT Inspect{% endblock %}
+
+{% block nav %}
+<nav class="top-nav">
+    <div class="nav-brand">
+        <i class="fa-solid fa-shield-halved" style="color:var(--accent-blue)"></i>
+        MAT Inspect Pro
+    </div>
+    <div class="nav-profile">
+        <a href="/roster" class="btn btn-outline" style="font-size:0.8rem; padding:0.5rem 1rem; text-decoration:none">
+            <i class="fa-solid fa-arrow-left"></i> Duty Roster
+        </a>
+        <div class="avatar" title="{{ user.name }}">{{ user.name[0] | upper }}</div>
+        <a href="/logout" class="btn btn-icon" title="Secure Logout"
+            style="margin-left:8px; color:var(--state-danger); border:1px solid rgba(239,68,68,0.3); padding:0.4rem 0.6rem;">
+            <i class="fa-solid fa-power-off"></i>
+        </a>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="animation:fadeIn 0.4s ease-out">
+
+    <!-- Header -->
+    <div class="inspection-header">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem">
+            <div>
+                <h2 style="color:white">{{ equipment.name }}</h2>
+                <p style="color:var(--text-muted)">{{ equipment.type }} · Inspector: <strong style="color:white">{{ user.name }}</strong></p>
+            </div>
+            <div>
+                {% set badge = 'badge-success' if equipment.status == 'Green' else ('badge-danger' if equipment.status == 'Red' else 'badge-warning') %}
+                <span class="badge {{ badge }}" style="font-size:0.9rem; padding:0.4rem 1rem">Currently: {{ equipment.status }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checklist Form -->
+    <form id="inspection-form" method="POST" action="/submit_inspection">
+        <input type="hidden" name="equipment_id" value="{{ equipment.id }}">
+        <input type="hidden" name="fail_count"   id="fail_count_input" value="0">
+        <input type="hidden" name="photo_count"  id="photo_count_input" value="0">
+
+        <h3 style="margin-bottom:1.5rem; color:white">
+            <i class="fa-solid fa-list-check" style="margin-right:8px; color:var(--accent-blue)"></i>
+            Action Items
+        </h3>
+
+        {% for item in checklist %}
+        <div class="checklist-item" id="item-{{ loop.index0 }}">
+            <div style="flex:1">
+                <i class="fa-solid fa-circle-dot" style="color:var(--accent-blue); margin-right:8px"></i>
+                <span style="color:white">{{ item.text }}</span>
+                <span style="color:var(--state-danger); margin-left:4px" title="Required">*</span>
+            </div>
+            <div class="check-options">
+                <input type="radio" class="radio-btn" id="pass-{{ loop.index0 }}" name="check-{{ loop.index0 }}" value="pass"
+                    onchange="updateChecklist({{ loop.index0 }}, 'pass')">
+                <label for="pass-{{ loop.index0 }}" class="radio-label pass-label">
+                    <i class="fa-solid fa-check"></i> PASS
+                </label>
+
+                <input type="radio" class="radio-btn" id="fail-{{ loop.index0 }}" name="check-{{ loop.index0 }}" value="fail"
+                    onchange="updateChecklist({{ loop.index0 }}, 'fail')">
+                <label for="fail-{{ loop.index0 }}" class="radio-label fail-label">
+                    <i class="fa-solid fa-xmark"></i> FAIL
+                </label>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Comments -->
+        <div class="form-group" style="margin-top:2.5rem">
+            <label class="form-label" style="font-weight:600">Inspector Comments / Observations</label>
+            <textarea class="form-control" name="notes" rows="4"
+                placeholder="Describe any leaks, damage, hydraulic concerns, or strange noises..."></textarea>
+        </div>
+
+        <!-- Multi-Angle Photo Verification -->
+        <div class="form-group" id="photo-capture-section">
+            <label class="form-label" style="font-weight:600">
+                <i class="fa-solid fa-camera" style="color:var(--accent-blue); margin-right:5px"></i>
+                Multi-Angle Photo Verification
+                <span style="color:var(--state-danger)" title="Min 3 Required">*</span>
+            </label>
+
+            <div id="camera-interface-btn" style="border:2px dashed rgba(255,255,255,0.2); padding:2.5rem; text-align:center; border-radius:var(--radius-md); background:rgba(0,0,0,0.2); cursor:pointer" onclick="startFormCamera()">
+                <i class="fa-solid fa-video" style="font-size:2.5rem; color:var(--accent-blue); margin-bottom:15px"></i>
+                <p style="color:white; font-weight:500; margin-bottom:5px">Initialize device camera for batch capture</p>
+                <p style="font-size:0.875rem"><i class="fa-solid fa-microchip"></i> Min. 3 images required for YOLOv8 batch inferencing.</p>
+            </div>
+
+            <div id="active-camera-interface" style="display:none; text-align:center; background:#050505; border:1px solid var(--border-light); padding:1rem; border-radius:var(--radius-md)">
+                <video id="form-video-feed" autoplay playsinline style="width:100%; max-width:500px; border-radius:var(--radius-md); display:block; margin:0 auto; background:black;"></video>
+                <div style="display:flex; justify-content:center; gap:10px; margin-top:15px">
+                    <button type="button" class="btn btn-primary" style="font-size:1.1rem; padding:0.8rem 2rem" onclick="captureFormSnapshot()">
+                        <i class="fa-solid fa-camera-viewfinder"></i> Snap Photo
+                    </button>
+                    <button type="button" class="btn btn-outline" style="padding:0.8rem 1rem" onclick="closeFormCamera()">
+                        <i class="fa-solid fa-xmark"></i> Close
+                    </button>
+                </div>
+            </div>
+
+            <!-- Also allow file upload fallback -->
+            <div style="margin-top:10px; text-align:center">
+                <label style="font-size:0.8rem; color:var(--text-muted); cursor:pointer">
+                    <i class="fa-solid fa-upload"></i> Or upload images instead
+                    <input type="file" id="file-upload" accept="image/*" multiple style="display:none" onchange="handleFileUpload(event)">
+                </label>
+            </div>
+
+            <div id="snapshot-gallery-wrapper" style="display:none; padding:1.5rem; border:2px solid var(--border-light); border-radius:var(--radius-md); background:var(--bg-panel); margin-top:10px">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px">
+                    <h4 style="color:white; margin:0"><i class="fa-solid fa-images"></i> Queue: <span id="gallery-count">0</span>/3 Photos</h4>
+                    <span id="gallery-status-badge" class="badge badge-danger">INCOMPLETE</span>
+                </div>
+                <div id="snapshot-gallery-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:10px; margin-bottom:15px"></div>
+                <button type="button" class="btn btn-outline" style="width:100%; border-style:dashed" onclick="startFormCamera()">
+                    <i class="fa-solid fa-plus"></i> Capture Another Angle
+                </button>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem">
+            <div>
+                <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:5px">Verified by:</p>
+                <p style="color:white; font-weight:600">{{ user.name }}</p>
+            </div>
+            <button type="button" class="btn btn-primary" style="padding:1rem 2.5rem; font-size:1.1rem" onclick="submitInspectionForm()">
+                <i class="fa-solid fa-paper-plane"></i> Submit Secure Report
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CHECKLIST_LENGTH = {{ checklist | length }};
+let capturedImagesQueue = [];
+let formVideoStream = null;
+
+// ── Checklist Logic ──
+function updateChecklist(idx, value) {
+    const item = document.getElementById('item-' + idx);
+    if (value === 'pass') {
+        item.className = 'checklist-item pass';
+    } else {
+        item.className = 'checklist-item fail';
+    }
+    updateHiddenFailCount();
+}
+
+function updateHiddenFailCount() {
+    let fails = 0;
+    for (let i = 0; i < CHECKLIST_LENGTH; i++) {
+        const failRadio = document.getElementById('fail-' + i);
+        if (failRadio && failRadio.checked) fails++;
+    }
+    document.getElementById('fail_count_input').value = fails;
+}
+
+// ── Camera Logic ──
+function startFormCamera() {
+    document.getElementById('camera-interface-btn').style.display = 'none';
+    document.getElementById('snapshot-gallery-wrapper').style.display = 'none';
+    document.getElementById('active-camera-interface').style.display = 'block';
+    const video = document.getElementById('form-video-feed');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(s => { formVideoStream = s; video.srcObject = s; })
+        .catch(() => navigator.mediaDevices.getUserMedia({ video: true })
+            .then(s => { formVideoStream = s; video.srcObject = s; })
+            .catch(() => {
+                showToast('Camera access denied.', 'error');
+                closeFormCamera();
+            }));
+}
+
+function captureFormSnapshot() {
+    const video = document.getElementById('form-video-feed');
+    if (!formVideoStream) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    addImageToQueue(canvas.toDataURL('image/jpeg', 0.85));
+    closeFormCamera();
+}
+
+function handleFileUpload(event) {
+    Array.from(event.target.files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = e => addImageToQueue(e.target.result);
+        reader.readAsDataURL(file);
+    });
+}
+
+function addImageToQueue(dataUrl) {
+    capturedImagesQueue.push(dataUrl);
+    document.getElementById('photo_count_input').value = capturedImagesQueue.length;
+    renderGallery();
+    showToast(`Angle #${capturedImagesQueue.length} captured.`, 'success');
+}
+
+function renderGallery() {
+    const grid    = document.getElementById('snapshot-gallery-grid');
+    const count   = document.getElementById('gallery-count');
+    const badge   = document.getElementById('gallery-status-badge');
+    const wrapper = document.getElementById('snapshot-gallery-wrapper');
+    wrapper.style.display = 'block';
+    document.getElementById('camera-interface-btn').style.display = 'none';
+    grid.innerHTML = capturedImagesQueue.map((src, i) => `
+        <div style="position:relative; aspect-ratio:1; border-radius:var(--radius-sm); overflow:hidden; border:2px solid var(--border-focus)">
+            <img src="${src}" style="width:100%; height:100%; object-fit:cover">
+            <div style="position:absolute; bottom:0; right:0; background:rgba(0,0,0,0.7); color:white; font-size:12px; font-weight:bold; padding:2px 6px">#${i+1}</div>
+        </div>
+    `).join('');
+    count.innerText = capturedImagesQueue.length;
+    if (capturedImagesQueue.length >= 3) {
+        badge.className = 'badge badge-success'; badge.innerText = 'MINIMUM MET';
+        wrapper.style.borderColor = 'var(--state-success)';
+    } else {
+        badge.className = 'badge badge-danger'; badge.innerText = 'INCOMPLETE';
+        wrapper.style.borderColor = 'var(--border-light)';
+    }
+}
+
+function closeFormCamera() {
+    if (formVideoStream) { formVideoStream.getTracks().forEach(t => t.stop()); formVideoStream = null; }
+    document.getElementById('active-camera-interface').style.display = 'none';
+    if (capturedImagesQueue.length > 0) {
+        renderGallery();
+    } else {
+        document.getElementById('camera-interface-btn').style.display = 'block';
+    }
+}
+
+// ── Submission with AI Simulation Overlay ──
+function submitInspectionForm() {
+    // Validate checklist
+    for (let i = 0; i < CHECKLIST_LENGTH; i++) {
+        const p = document.getElementById('pass-' + i);
+        const f = document.getElementById('fail-' + i);
+        if (!p.checked && !f.checked) {
+            document.getElementById('item-' + i).style.border = '1px solid var(--state-danger)';
+            showToast('Please complete all mandatory checklist items.', 'error');
+            return;
+        }
+    }
+    if (capturedImagesQueue.length < 3) {
+        showToast('Capture at least 3 machine angles before submitting.', 'error');
+        document.getElementById('photo-capture-section').style.border = '2px solid var(--state-danger)';
+        document.getElementById('photo-capture-section').style.borderRadius = 'var(--radius-md)';
+        document.getElementById('photo-capture-section').style.padding = '10px';
+        setTimeout(() => {
+            document.getElementById('photo-capture-section').style.border = '';
+            document.getElementById('photo-capture-section').style.padding = '';
+        }, 3000);
+        return;
+    }
+
+    // AI Batch Pipeline Simulation
+    const batchSize = capturedImagesQueue.length;
+    const overlayHtml = `
+        <div id="ai-sim-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.90); backdrop-filter:blur(5px); z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; color:white">
+            <i class="fa-solid fa-layer-group fa-fade" style="font-size:4rem; color:var(--accent-blue); margin-bottom:2rem"></i>
+            <h2 id="ai-stage-text" style="margin-bottom:1rem">AI Batch Pipeline Triggered...</h2>
+            <div style="width:340px; height:10px; background:rgba(255,255,255,0.1); border-radius:5px; overflow:hidden">
+                <div id="ai-progress-bar" style="width:5%; height:100%; background:var(--accent-blue); transition:width 0.5s"></div>
+            </div>
+            <p id="ai-sub-text" style="color:var(--text-muted); margin-top:2rem">Constructing Tensor Array [Batch Size: ${batchSize}]...</p>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', overlayHtml);
+
+    setTimeout(() => {
+        document.getElementById('ai-stage-text').innerText = 'Preprocessing Tensor Array';
+        document.getElementById('ai-sub-text').innerText = `Normalizing & resizing batch of ${batchSize} images...`;
+        document.getElementById('ai-progress-bar').style.width = '35%';
+    }, 1500);
+    setTimeout(() => {
+        document.getElementById('ai-stage-text').innerText = 'Parallel Batch Inference';
+        document.getElementById('ai-sub-text').innerText = 'YOLOv8 Component & Defect Detection Matrix Active...';
+        document.getElementById('ai-progress-bar').style.width = '60%';
+    }, 3000);
+    setTimeout(() => {
+        document.getElementById('ai-stage-text').innerText = 'CNN Defect Classification';
+        document.getElementById('ai-sub-text').innerText = 'Cross-referencing defects against safety thresholds...';
+        document.getElementById('ai-progress-bar').style.width = '90%';
+    }, 4500);
+    setTimeout(() => {
+        document.getElementById('ai-sim-overlay').remove();
+        document.getElementById('inspection-form').submit();
+    }, 6000);
+}
+
+// ── Toast Helper ──
+function showToast(msg, type = 'success') {
+    const container = document.getElementById('toast-container') || (() => {
+        const c = document.createElement('div');
+        c.id = 'toast-container'; c.className = 'toast-container';
+        document.body.appendChild(c); return c;
+    })();
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i> ${msg}`;
+    container.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+}
+
+// AI Engine bootstrap
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof ort !== 'undefined') {
+        console.log('✅ [AI ENGINE] ONNX Runtime Web active — YOLOv8 Batch Interface Ready');
+    }
+});
+</script>
+{% endblock %}
